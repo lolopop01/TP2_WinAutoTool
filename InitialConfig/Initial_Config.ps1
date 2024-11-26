@@ -51,61 +51,59 @@ function Remove-SearchBar {
     }
 }
 
+function Manage-Apps {
+    $actionChoice = Read-Host "Voulez-vous (1) Désinstaller ou (2) Installer des applications ? (Entrez 1 ou 2)"
+    $modeChoice = Read-Host "Choisissez le mode : (1) Automatique ou (2) Interactif (Entrez 1 ou 2)"
+
+    $mode = if ($actionChoice -eq "1") { "uninstall" } elseif ($actionChoice -eq "2") { "install" } else { "invalid" }
+    $interactive = if ($modeChoice -eq "1") { $false } elseif ($modeChoice -eq "2") { $true } else { $false }
+
+    if ($mode -eq "invalid") {
+        Write-Host "Choix invalide. Veuillez choisir 1 ou 2 pour l'action."
+        return
+    }
+
+    .\Manage-Apps.ps1 -Mode $mode -Interactive $interactive -ConfigFilePath $ConfigFilePath
+}
+
 function Show-Menu {
-    $ConfigFilePath  = Resolve-Path ".\config.json"
-    
-    Clear-Host
-    Write-Host "Choisissez une option:"
-    Write-Host "1. Changer le fond d'écran"
-    Write-Host "2. Supprimer la barre de recherche"
-    Write-Host "3. Enlever du bloatware"
-    Write-Host "4. Ajouter du bloatware"
-    Write-Host "5. Quitter"
+    $ConfigFilePath = Resolve-Path ".\config.json"
 
-    $choice = Read-Host "Entrez votre choix"
+    while ($true) {
+        Clear-Host
+        Write-Host "Choisissez une option:"
+        Write-Host "1. Changer le fond d'écran"
+        Write-Host "2. Supprimer la barre de recherche"
+        Write-Host "3. Gérer les applications"
+        Write-Host "4. Quitter"
 
-    switch ($choice) {
-        1 {
-            Change-Background
-        }
-        2 {
-            Remove-SearchBar
-        }
-        3 {
-            $actionChoice = Read-Host "Voulez-vous (1) Désinstaller ou (2) Installer des applications ? (Entrez 1 ou 2)"
-            $modeChoice = Read-Host "Choisissez le mode : (1) Automatique ou (2) Interactif (Entrez 1 ou 2)"
+        $choice = Read-Host "Entrez votre choix"
 
-            $mode = if ($actionChoice -eq "1") { "uninstall" } elseif ($actionChoice -eq "2") { "install" } else { "invalid" }
-            $interactive = if ($modeChoice -eq "1") { $false } elseif ($modeChoice -eq "2") { $true } else { $false }
-
-            if ($mode -eq "invalid") {
-                Write-Host "Choix invalide. Veuillez choisir 1 ou 2 pour l'action."
-                return
+        switch ($choice) {
+            1 {
+                Change-Background
             }
-
-            .\Manage-Apps.ps1 -Mode $mode -Interactive $interactive -ConfigFilePath $ConfigFilePath
-        }
-        4 {
-            $actionChoice = Read-Host "Voulez-vous (1) Désinstaller ou (2) Installer des applications ? (Entrez 1 ou 2)"
-            $modeChoice = Read-Host "Choisissez le mode : (1) Automatique ou (2) Interactif (Entrez 1 ou 2)"
-
-            $mode = if ($actionChoice -eq "1") { "uninstall" } elseif ($actionChoice -eq "2") { "install" } else { "invalid" }
-            $interactive = if ($modeChoice -eq "1") { $false } elseif ($modeChoice -eq "2") { $true } else { $false }
-
-            if ($mode -eq "invalid") {
-                Write-Host "Choix invalide. Veuillez choisir 1 ou 2 pour l'action."
-                return
+            2 {
+                Remove-SearchBar
             }
+            3 {
+                Manage-Apps
+            }
+            4 {
+                Write-Host "Au revoir!"
+                Exit
+            }
+            default {
+                Write-Host "Choix non valide, veuillez réessayer."
+            }
+        }
 
-            .\Manage-Apps.ps1 -Mode $mode -Interactive $interactive -ConfigFilePath $ConfigFilePath
-        }
-        5 {
-            Exit
-        }
-        default {
-            Write-Host "Choix non valide, veuillez réessayer."
+        # If user chose to quit, the script will exit the loop
+        if ($choice -eq 4) {
+            break
         }
     }
 }
+
 
 Show-Menu
