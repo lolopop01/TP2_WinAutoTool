@@ -1,0 +1,19 @@
+﻿{
+  "appsToRemove": [
+    "astuces",
+    "calendrier",
+    "courrier",
+    "votre téléphone",
+    "musique",
+    "solitaire"
+  ],
+  "appsToInstall": [
+    { "name": "googlechrome" },
+    { "name": "adobereader" },
+    { "name": "teams" },
+    { "name": "notepadplusplus" },
+    { "name": "7zip" },
+    { "name": "vlc" },
+    { "name": "vscode" }
+  ]
+}
