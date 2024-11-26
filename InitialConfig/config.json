@@ -8,12 +8,12 @@
     "solitaire"
   ],
   "appsToInstall": [
-    { "name": "googlechrome" },
-    { "name": "adobereader" },
-    { "name": "teams" },
-    { "name": "notepadplusplus" },
-    { "name": "7zip" },
-    { "name": "vlc" },
-    { "name": "vscode" }
+    "googlechrome",
+    "adobereader",
+    "teams",
+    "notepadplusplus",
+    "7zip",
+    "vlc",
+    "vscode"
   ]
 }
