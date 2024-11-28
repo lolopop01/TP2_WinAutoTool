@@ -21,9 +21,13 @@ function Get-Config {
 
 function Is-AppInstalled {
     param ([string]$appName)
-    $software = (Get-ItemProperty -Path "HKLM:\SOFTWARE\*\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue)
-    $software += (Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue)
-    return $software | Where-Object { $_.DisplayName -like "*$appName*" }
+    # Check using CimInstance for MSI-installed apps
+    $installedApp = Get-CimInstance -ClassName Win32_Product | Where-Object { $_.Name -like "*$appName*" }
+    # Additionally, check for Store apps
+    if (-not $installedApp) {
+        $installedApp = Get-AppxPackage -Name "*$appName*" -ErrorAction SilentlyContinue
+    }
+    return $installedApp
 }
 
 function Manage-App {
@@ -41,21 +45,33 @@ function Manage-App {
     } else {
         Write-EventLog -LogName Application -Source "AppManager" -EventId 10 -EntryType Information -Message "Attempting to uninstall $appName."
 
-        if (Is-AppInstalled $appName) {
-            $uninstallString = (Get-ItemProperty -Path "HKLM:\SOFTWARE\*\Microsoft\Windows\CurrentVersion\Uninstall\$appName" -ErrorAction SilentlyContinue).UninstallString
-            if ($uninstallString) {
-                Start-Process -FilePath $uninstallString -ArgumentList "/quiet /norestart" -Wait
+        $installedApp = Is-AppInstalled $appName
+        if ($installedApp) {
+            if ($installedApp -is [System.Management.ManagementObject]) {
+                # If MSI-based, find uninstall string
+                $uninstallString = $installedApp.UninstallString
+                if ($uninstallString) {
+                    Start-Process -FilePath $uninstallString -ArgumentList "/quiet /norestart" -Wait
+                    Write-EventLog -LogName Application -Source "AppManager" -EventId 11 -EntryType Information -Message "$appName uninstalled."
+                    $Host.UI.RawUI.CursorPosition = @{X=0; Y=0}
+                    Clear-Host
+
+                } else {
+                    Write-EventLog -LogName Application -Source "AppManager" -EventId 12 -EntryType Warning -Message "No uninstall string found for $appName."
+                }
+            } elseif ($installedApp -is [System.Management.Automation.PSObject]) {
+                # If Store-based, remove using Remove-AppxPackage
+                Remove-AppxPackage -Package $installedApp.PackageFullName
                 Write-EventLog -LogName Application -Source "AppManager" -EventId 11 -EntryType Information -Message "$appName uninstalled."
-            } else {
-                Write-EventLog -LogName Application -Source "AppManager" -EventId 12 -EntryType Warning -Message "No uninstall string found for $appName."
+                $Host.UI.RawUI.CursorPosition = @{X=0; Y=0}
+                Clear-Host
+
             }
         } else {
             Write-EventLog -LogName Application -Source "AppManager" -EventId 13 -EntryType Information -Message "$appName is not installed."
         }
     }
-    cls
 }
-
 
 function InteractiveMode {
     param ([string[]]$appList, [bool]$isInstall)
@@ -75,8 +91,8 @@ function InteractiveMode {
 }
 
 function List-InstalledApps {
-    Get-ItemProperty -Path "HKLM:\SOFTWARE\*\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
-            Select-Object DisplayName, DisplayVersion, Publisher
+    $installedApps = Get-CimInstance -ClassName Win32_Product | Select-Object Name, Version, Vendor
+    $installedApps
 }
 
 Create-LogSource

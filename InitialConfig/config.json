@@ -1,8 +1,10 @@
 ﻿{
   "appsToRemove": [
-    "Skype",
-    "Paint",
-    "Movies & TV"
+    "Microsoft.SkypeApp",
+    "Microsoft.Paint",
+    "Microsoft.ZuneVideo",
+    "Microsoft.YourPhone",
+    "Microsoft.WindowsStore"
   ],
   "appsToInstall": [
     "googlechrome",
