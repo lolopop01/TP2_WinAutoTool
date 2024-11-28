@@ -1,7 +1,8 @@
 ﻿{
   "appsToRemove": [
-    "Microsoft.Office.OneNote",
-    "Microsoft.SkypeApp"
+    "Skype",
+    "Paint",
+    "Movies & TV"
   ],
   "appsToInstall": [
     "googlechrome",
@@ -13,6 +14,7 @@
     "git",
     "firefox",
     "blender",
-    "docker-desktop"
+    "docker-desktop",
+    "microsoft-teams-new-bootstrapper"
   ]
 }

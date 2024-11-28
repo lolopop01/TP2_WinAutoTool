@@ -63,6 +63,14 @@ function Manage-Apps {
         return
     }
 
+    $ConfigFilePath = Resolve-Path ".\config.json"
+    if (-Not (Test-Path $ConfigFilePath)) {
+        $errorMessage = "Le fichier de configuration n'a pas été trouvé. Veuillez vérifier le chemin."
+        Write-Host $errorMessage
+        Log-ErrorToEventViewer -Message $errorMessage
+        return
+    }
+
     .\Manage-Apps.ps1 -Mode $mode -Interactive $interactive -ConfigFilePath $ConfigFilePath
 }
 
@@ -90,7 +98,6 @@ function Show-Menu {
                 Manage-Apps
             }
             4 {
-                Write-Host "Au revoir!"
                 Exit
             }
             default {

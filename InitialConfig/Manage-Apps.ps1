@@ -5,112 +5,98 @@
     [switch]$ListInstalled
 )
 
-if (-Not (Test-Path $ConfigFilePath)) {
-    Write-Host "Configuration file not found: $ConfigFilePath"
-    return
-}
-
-$config = Get-Content $ConfigFilePath | ConvertFrom-Json
-$appsToRemove = $config.appsToRemove
-$appsToInstall = $config.appsToInstall
-
-function Is-AppInstalled {
-    param (
-        [string]$appName
-    )
-    if (choco list --local-only | Select-String $appName) {
-        return $true
-    }
-    return $false
-}
-
-function Log-Error {
-    param ([string]$message)
+function Create-LogSource {
     if (-not [System.Diagnostics.EventLog]::SourceExists("AppManager")) {
         New-EventLog -LogName Application -Source "AppManager"
     }
-    Write-EventLog -LogName Application -Source "AppManager" -EventId 1 -EntryType Error -Message $message
 }
 
-function Install-App {
-    param ([string]$appName)
-    try {
-        Write-Host "Installing $appName..."
-        choco install $appName -y
-        Write-Host "$appName installed."
-    } catch { Log-Error $_.Exception.Message }
+function Get-Config {
+    if (-not (Test-Path $ConfigFilePath)) {
+        Write-EventLog -LogName Application -Source "AppManager" -EventId 2 -EntryType Error -Message "Config file missing."
+        return $null
+    }
+    return Get-Content $ConfigFilePath | ConvertFrom-Json
 }
 
-function Uninstall-App {
+function Is-AppInstalled {
     param ([string]$appName)
-    try {
-        Write-Host "Uninstalling $appName..."
-        choco uninstall $appName -y
-        Write-Host "$appName uninstalled."
-    } catch { Log-Error $_.Exception.Message }
+    $software = (Get-ItemProperty -Path "HKLM:\SOFTWARE\*\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue)
+    $software += (Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue)
+    return $software | Where-Object { $_.DisplayName -like "*$appName*" }
 }
 
 function Manage-App {
     param ([string]$appName, [bool]$isInstall)
+
     if ($isInstall) {
-        if (-Not (Is-AppInstalled -appName $appName)) {
-            Install-App $appName
-        } else { Write-Host "$appName is already installed." }
+        Write-EventLog -LogName Application -Source "AppManager" -EventId 6 -EntryType Information -Message "Attempting to install $appName."
+
+        if (-not (Is-AppInstalled $appName)) {
+            choco install $appName -y
+            Write-EventLog -LogName Application -Source "AppManager" -EventId 7 -EntryType Information -Message "$appName installed."
+        } else {
+            Write-EventLog -LogName Application -Source "AppManager" -EventId 9 -EntryType Information -Message "$appName is already installed."
+        }
     } else {
-        if (Is-AppInstalled -appName $appName) {
-            Uninstall-App $appName
-        } else { Write-Host "$appName is not installed." }
+        Write-EventLog -LogName Application -Source "AppManager" -EventId 10 -EntryType Information -Message "Attempting to uninstall $appName."
+
+        if (Is-AppInstalled $appName) {
+            $uninstallString = (Get-ItemProperty -Path "HKLM:\SOFTWARE\*\Microsoft\Windows\CurrentVersion\Uninstall\$appName" -ErrorAction SilentlyContinue).UninstallString
+            if ($uninstallString) {
+                Start-Process -FilePath $uninstallString -ArgumentList "/quiet /norestart" -Wait
+                Write-EventLog -LogName Application -Source "AppManager" -EventId 11 -EntryType Information -Message "$appName uninstalled."
+            } else {
+                Write-EventLog -LogName Application -Source "AppManager" -EventId 12 -EntryType Warning -Message "No uninstall string found for $appName."
+            }
+        } else {
+            Write-EventLog -LogName Application -Source "AppManager" -EventId 13 -EntryType Information -Message "$appName is not installed."
+        }
     }
+    cls
 }
+
 
 function InteractiveMode {
     param ([string[]]$appList, [bool]$isInstall)
     $index = 0
+    cls
     while ($true) {
-        cls
-        Write-Host "Use arrow keys to navigate. Press Enter to toggle. Press 'q' to finish."
-
-        for ($i = 0; $i -lt $appList.Count; $i++) {
-            if ($i -eq $index) {
-                Write-Host "> $($appList[$i])" -ForegroundColor Cyan
-            } else {
-                Write-Host "  $($appList[$i])"
-            }
-        }
-
+        $Host.UI.RawUI.CursorPosition = @{X=0; Y=0}
+        $appList | ForEach-Object { if ($_ -eq $appList[$index]) { Write-Host "> $_" -ForegroundColor Cyan } else { Write-Host "  $_" } }
         $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown").VirtualKeyCode
         switch ($key) {
             38 { $index = ($index - 1 + $appList.Count) % $appList.Count }
             40 { $index = ($index + 1) % $appList.Count }
-            13 { Manage-App $appList[$index] -isInstall $isInstall }
+            13 { Manage-App $appList[$index] $isInstall }
             81 { return }
         }
     }
 }
 
 function List-InstalledApps {
-    Write-Host "Installed apps:"
-    choco list --local-only
+    Get-ItemProperty -Path "HKLM:\SOFTWARE\*\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
+            Select-Object DisplayName, DisplayVersion, Publisher
 }
+
+Create-LogSource
+$config = Get-Config
+if (-not $config) { return }
+
+$appsToRemove = $config.appsToRemove
+$appsToInstall = $config.appsToInstall
 
 if ($ListInstalled) {
     List-InstalledApps
 } elseif ($Mode -eq "install") {
-    if ($Interactive) {
-        InteractiveMode $appsToInstall -isInstall $true
-    }
-    else {
-        $appsToInstall | ForEach-Object { Manage-App $_ -isInstall $true }
-    }
+    if ($Interactive) { InteractiveMode $appsToInstall $true }
+    else { $appsToInstall | ForEach-Object { Manage-App $_ $true } }
 } elseif ($Mode -eq "uninstall") {
-    if ($Interactive) {
-        InteractiveMode $appsToRemove -isInstall $false
-    }
-    else {
-        $appsToRemove | ForEach-Object { Manage-App $_ -isInstall $false }
-    }
+    if ($Interactive) { InteractiveMode $appsToRemove $false }
+    else { $appsToRemove | ForEach-Object { Manage-App $_ $false } }
 } else {
-    Write-Host "Invalid mode. Use 'install' or 'uninstall'."
+    Write-EventLog -LogName Application -Source "AppManager" -EventId 21 -EntryType Error -Message "Invalid mode."
+    exit 1
 }
 
-Write-Host "Operation completed."
+Write-EventLog -LogName Application -Source "AppManager" -EventId 22 -EntryType Information -Message "Operation completed."
