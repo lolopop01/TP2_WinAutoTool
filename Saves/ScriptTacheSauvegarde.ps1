@@ -1,6 +1,6 @@
 ﻿# Configuration
 $taskName = "SauvegardeAutomatique"
-$scriptPath = "C:\Chemin\Vers\Sauvegarde.ps1"  # Chemin du script de sauvegarde
+$scriptPath = $sourceFolder = Resolve-Path -Path "./Saves/scriptSauvegarde.ps1"  # Chemin du script de sauvegarde
 $executionTime = "02:00AM"  # Heure d'exécution quotidienne
 
 # Vérification que le script de sauvegarde existe

@@ -1,6 +1,6 @@
 ﻿function Change-Background() {
     param (
-        [string]$Path = "Deep_Lilypads_Biome.jpg"
+        [string]$Path = ".\InitialConfig\Deep_Lilypads_Biome.jpg"
     )
 
     $Data = @{
@@ -63,7 +63,7 @@ function Manage-Apps {
         return
     }
     
-    $ConfigFilePath = Resolve-Path ".\config.json"
+    $ConfigFilePath = Resolve-Path ".\InitialConfig\config.json"
     if (-Not (Test-Path $ConfigFilePath)) {
         $errorMessage = "Le fichier de configuration n'a pas été trouvé. Veuillez vérifier le chemin."
         Write-Host $errorMessage
@@ -71,14 +71,14 @@ function Manage-Apps {
         return
     }
 
-    .\Manage-Apps.ps1 -Mode $mode -Interactive $interactive -ConfigFilePath $ConfigFilePath
+    .\InitialConfig\Manage-Apps.ps1 -Mode $mode -Interactive $interactive -ConfigFilePath $ConfigFilePath
 }
 
 function Show-Menu {
-    $ConfigFilePath = Resolve-Path ".\config.json"
+    $ConfigFilePath = Resolve-Path ".\InitialConfig\config.json"
 
     while ($true) {
-        cls
+        
         Write-Host "Choisissez une option:"
         Write-Host "1. Changer le fond d'écran"
         Write-Host "2. Supprimer la barre de recherche"
