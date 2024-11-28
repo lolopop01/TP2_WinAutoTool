@@ -70,7 +70,7 @@ function Show-Menu {
     $ConfigFilePath = Resolve-Path ".\config.json"
 
     while ($true) {
-        Clear-Host
+        cls
         Write-Host "Choisissez une option:"
         Write-Host "1. Changer le fond d'écran"
         Write-Host "2. Supprimer la barre de recherche"

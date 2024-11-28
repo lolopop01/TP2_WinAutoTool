@@ -1,19 +1,18 @@
 ﻿{
   "appsToRemove": [
-    "astuces",
-    "calendrier",
-    "courrier",
-    "votre téléphone",
-    "musique",
-    "solitaire"
+    "Microsoft.Office.OneNote",
+    "Microsoft.SkypeApp"
   ],
   "appsToInstall": [
     "googlechrome",
     "adobereader",
-    "teams",
     "notepadplusplus",
     "7zip",
     "vlc",
-    "vscode"
+    "vscode",
+    "git",
+    "firefox",
+    "blender",
+    "docker-desktop"
   ]
 }

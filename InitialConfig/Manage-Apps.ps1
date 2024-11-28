@@ -1,27 +1,12 @@
 ﻿param (
     [string]$Mode,
-    [switch]$Interactive,
-    [string]$ConfigFilePath
+    [bool]$Interactive,
+    [string]$ConfigFilePath,
+    [switch]$ListInstalled
 )
 
-function Install-Chocolatey {
-    Write-Host "Chocolatey n'est pas installé. Installation en cours..."
-    Set-ExecutionPolicy Bypass -Scope Process -Force
-    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
-    iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-    Write-Host "Chocolatey installé avec succès !"
-}
-
-if (-Not (Get-Command choco -ErrorAction SilentlyContinue)) {
-    Install-Chocolatey
-} else {
-    Write-Host "Chocolatey est déjà installé."
-}
-
 if (-Not (Test-Path $ConfigFilePath)) {
-    Write-Host "Fichier de configuration introuvable à : $ConfigFilePath"
-    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-    Get-ChildItem -Path $scriptDir
+    Write-Host "Configuration file not found: $ConfigFilePath"
     return
 }
 
@@ -29,118 +14,103 @@ $config = Get-Content $ConfigFilePath | ConvertFrom-Json
 $appsToRemove = $config.appsToRemove
 $appsToInstall = $config.appsToInstall
 
-if ($Mode -eq "install") {
-    Write-Host "Installation des applications..."
-} elseif ($Mode -eq "uninstall") {
-    Write-Host "Suppression des applications..."
-} else {
-    Write-Host "Mode invalide spécifié. Utilisez 'install' ou 'uninstall'."
-    return
-}
-
 function Is-AppInstalled {
     param (
         [string]$appName
     )
-
-    # Check if the app is installed via Chocolatey
-    $chocoInstalled = choco list --local-only | Select-String $appName
-    if ($chocoInstalled) {
+    if (choco list --local-only | Select-String $appName) {
         return $true
     }
-
-    # Check if the app is installed via AppX (for UWP apps)
-    $appxInstalled = Get-AppxPackage -Name $appName
-    if ($appxInstalled) {
-        return $true
-    }
-
     return $false
 }
 
-function Manage-App {
-    param (
-        [string]$appName,
-        [bool]$isInstall
-    )
-
-    $isChocolateyApp = $appsToInstall -contains $appName
-
-    if ($Interactive) {
-        # Only prompt if the app is installed
-        if (Is-AppInstalled -appName $appName) {
-            $action = if ($isInstall) { 'installer' } else { 'désinstaller' }
-            if ($isChocolateyApp) {
-                $userResponse = Read-Host "Voulez-vous $action $appName via Chocolatey ? (o/n)"
-                if ($userResponse -ne 'o') {
-                    Write-Host "$action de $appName ignoré."
-                    return $null
-                }
-            } else {
-                $userResponse = Read-Host "Voulez-vous $action $appName via AppX ? (o/n)"
-                if ($userResponse -ne 'o') {
-                    Write-Host "$action de $appName ignoré."
-                    return $null
-                }
-            }
-        } else {
-            Write-Host "$appName n'est pas installé, donc il ne sera pas désinstallé."
-            return $null
-        }
+function Log-Error {
+    param ([string]$message)
+    if (-not [System.Diagnostics.EventLog]::SourceExists("AppManager")) {
+        New-EventLog -LogName Application -Source "AppManager"
     }
+    Write-EventLog -LogName Application -Source "AppManager" -EventId 1 -EntryType Error -Message $message
+}
 
+function Install-App {
+    param ([string]$appName)
     try {
-        if ($isInstall) {
-            Write-Host "Installation de $appName via Chocolatey..."
-            choco install $appName -y
-            Write-Host "$appName installé avec succès !"
-            return $appName
-        } else {
-            if ($appName -in $appsToInstall) {
-                Write-Host "Désinstallation de $appName via Chocolatey..."
-                choco uninstall $appName -y
-                Write-Host "$appName désinstallé avec succès !"
-                return $appName
+        Write-Host "Installing $appName..."
+        choco install $appName -y
+        Write-Host "$appName installed."
+    } catch { Log-Error $_.Exception.Message }
+}
+
+function Uninstall-App {
+    param ([string]$appName)
+    try {
+        Write-Host "Uninstalling $appName..."
+        choco uninstall $appName -y
+        Write-Host "$appName uninstalled."
+    } catch { Log-Error $_.Exception.Message }
+}
+
+function Manage-App {
+    param ([string]$appName, [bool]$isInstall)
+    if ($isInstall) {
+        if (-Not (Is-AppInstalled -appName $appName)) {
+            Install-App $appName
+        } else { Write-Host "$appName is already installed." }
+    } else {
+        if (Is-AppInstalled -appName $appName) {
+            Uninstall-App $appName
+        } else { Write-Host "$appName is not installed." }
+    }
+}
+
+function InteractiveMode {
+    param ([string[]]$appList, [bool]$isInstall)
+    $index = 0
+    while ($true) {
+        cls
+        Write-Host "Use arrow keys to navigate. Press Enter to toggle. Press 'q' to finish."
+
+        for ($i = 0; $i -lt $appList.Count; $i++) {
+            if ($i -eq $index) {
+                Write-Host "> $($appList[$i])" -ForegroundColor Cyan
             } else {
-                Write-Host "Suppression de $appName via AppX..."
-                Get-AppxPackage -Name $appName | Remove-AppxPackage -ErrorAction SilentlyContinue
-                Write-Host "$appName supprimé avec succès !"
-                return $appName
+                Write-Host "  $($appList[$i])"
             }
         }
-    } catch {
-        Write-Host "Erreur lors de l'opération sur $appName : $_"
-        return $null
-    }
-}
 
-$installedApps = @()
-$uninstalledApps = @()
-
-if ($Mode -eq "uninstall") {
-    foreach ($appName in $appsToRemove) {
-        $result = Manage-App -appName $appName -isInstall $false
-        if ($result) {
-            $uninstalledApps += $result
+        $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown").VirtualKeyCode
+        switch ($key) {
+            38 { $index = ($index - 1 + $appList.Count) % $appList.Count }
+            40 { $index = ($index + 1) % $appList.Count }
+            13 { Manage-App $appList[$index] -isInstall $isInstall }
+            81 { return }
         }
     }
 }
 
-if ($Mode -eq "install") {
-    foreach ($appName in $appsToInstall) {
-        $result = Manage-App -appName $appName -isInstall $true
-        if ($result) {
-            $installedApps += $result
-        }
+function List-InstalledApps {
+    Write-Host "Installed apps:"
+    choco list --local-only
+}
+
+if ($ListInstalled) {
+    List-InstalledApps
+} elseif ($Mode -eq "install") {
+    if ($Interactive) {
+        InteractiveMode $appsToInstall -isInstall $true
     }
+    else {
+        $appsToInstall | ForEach-Object { Manage-App $_ -isInstall $true }
+    }
+} elseif ($Mode -eq "uninstall") {
+    if ($Interactive) {
+        InteractiveMode $appsToRemove -isInstall $false
+    }
+    else {
+        $appsToRemove | ForEach-Object { Manage-App $_ -isInstall $false }
+    }
+} else {
+    Write-Host "Invalid mode. Use 'install' or 'uninstall'."
 }
 
-if ($Mode -eq "install" -and $installedApps.Count -gt 0) {
-    Write-Host "Applications installées avec succès :"
-    $installedApps | ForEach-Object { Write-Host $_ }
-} elseif ($Mode -eq "uninstall" -and $uninstalledApps.Count -gt 0) {
-    Write-Host "Applications désinstallées avec succès :"
-    $uninstalledApps | ForEach-Object { Write-Host $_ }
-}
-
-Write-Host "Opération terminée."
+Write-Host "Operation completed."

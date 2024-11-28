@@ -41,3 +41,5 @@
 }
 
 Install-WindowsUpdates
+
+Install-WindowsUpdates
