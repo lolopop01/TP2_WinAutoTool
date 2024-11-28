@@ -62,7 +62,7 @@ function Manage-Apps {
         Write-Host "Choix invalide. Veuillez choisir 1 ou 2 pour l'action."
         return
     }
-
+    
     $ConfigFilePath = Resolve-Path ".\config.json"
     if (-Not (Test-Path $ConfigFilePath)) {
         $errorMessage = "Le fichier de configuration n'a pas été trouvé. Veuillez vérifier le chemin."

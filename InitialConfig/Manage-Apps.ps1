@@ -13,6 +13,7 @@ function Create-LogSource {
 
 function Get-Config {
     if (-not (Test-Path $ConfigFilePath)) {
+        Write-Host "Config file is missing." -ForegroundColor Red
         Write-EventLog -LogName Application -Source "AppManager" -EventId 2 -EntryType Error -Message "Config file missing."
         return $null
     }
@@ -21,9 +22,7 @@ function Get-Config {
 
 function Is-AppInstalled {
     param ([string]$appName)
-    # Check using CimInstance for MSI-installed apps
     $installedApp = Get-CimInstance -ClassName Win32_Product | Where-Object { $_.Name -like "*$appName*" }
-    # Additionally, check for Store apps
     if (-not $installedApp) {
         $installedApp = Get-AppxPackage -Name "*$appName*" -ErrorAction SilentlyContinue
     }
@@ -34,40 +33,33 @@ function Manage-App {
     param ([string]$appName, [bool]$isInstall)
 
     if ($isInstall) {
+        Write-Host "Processing installation of $appName..." -ForegroundColor Yellow
         Write-EventLog -LogName Application -Source "AppManager" -EventId 6 -EntryType Information -Message "Attempting to install $appName."
-
-        if (-not (Is-AppInstalled $appName)) {
-            choco install $appName -y
-            Write-EventLog -LogName Application -Source "AppManager" -EventId 7 -EntryType Information -Message "$appName installed."
-        } else {
-            Write-EventLog -LogName Application -Source "AppManager" -EventId 9 -EntryType Information -Message "$appName is already installed."
-        }
+        Start-Process -FilePath "choco" -ArgumentList "install $appName -y --no-progress" -NoNewWindow -Wait
+        Write-Host "$appName installed successfully." -ForegroundColor Green
+        Write-EventLog -LogName Application -Source "AppManager" -EventId 7 -EntryType Information -Message "$appName installed."
     } else {
+        Write-Host "Processing uninstallation of $appName..." -ForegroundColor Yellow
         Write-EventLog -LogName Application -Source "AppManager" -EventId 10 -EntryType Information -Message "Attempting to uninstall $appName."
-
         $installedApp = Is-AppInstalled $appName
         if ($installedApp) {
             if ($installedApp -is [System.Management.ManagementObject]) {
-                # If MSI-based, find uninstall string
                 $uninstallString = $installedApp.UninstallString
                 if ($uninstallString) {
-                    Start-Process -FilePath $uninstallString -ArgumentList "/quiet /norestart" -Wait
+                    Start-Process -FilePath $uninstallString -ArgumentList "/quiet /norestart" -NoNewWindow -Wait
+                    Write-Host "$appName uninstalled successfully." -ForegroundColor Green
                     Write-EventLog -LogName Application -Source "AppManager" -EventId 11 -EntryType Information -Message "$appName uninstalled."
-                    $Host.UI.RawUI.CursorPosition = @{X=0; Y=0}
-                    Clear-Host
-
                 } else {
+                    Write-Host "No uninstall string found for $appName." -ForegroundColor Red
                     Write-EventLog -LogName Application -Source "AppManager" -EventId 12 -EntryType Warning -Message "No uninstall string found for $appName."
                 }
             } elseif ($installedApp -is [System.Management.Automation.PSObject]) {
-                # If Store-based, remove using Remove-AppxPackage
-                Remove-AppxPackage -Package $installedApp.PackageFullName
+                Remove-AppxPackage -Package $installedApp.PackageFullName -ErrorAction SilentlyContinue
+                Write-Host "$appName uninstalled successfully." -ForegroundColor Green
                 Write-EventLog -LogName Application -Source "AppManager" -EventId 11 -EntryType Information -Message "$appName uninstalled."
-                $Host.UI.RawUI.CursorPosition = @{X=0; Y=0}
-                Clear-Host
-
             }
         } else {
+            Write-Host "$appName is not installed." -ForegroundColor Cyan
             Write-EventLog -LogName Application -Source "AppManager" -EventId 13 -EntryType Information -Message "$appName is not installed."
         }
     }
@@ -79,6 +71,7 @@ function InteractiveMode {
     cls
     while ($true) {
         $Host.UI.RawUI.CursorPosition = @{X=0; Y=0}
+        Write-Host "Navigate with Up/Down Arrow, Select with Enter, Exit with 'Q'"
         $appList | ForEach-Object { if ($_ -eq $appList[$index]) { Write-Host "> $_" -ForegroundColor Cyan } else { Write-Host "  $_" } }
         $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown").VirtualKeyCode
         switch ($key) {
@@ -92,7 +85,8 @@ function InteractiveMode {
 
 function List-InstalledApps {
     $installedApps = Get-CimInstance -ClassName Win32_Product | Select-Object Name, Version, Vendor
-    $installedApps
+    Write-Host "Installed Applications:" -ForegroundColor Green
+    $installedApps | Format-Table -AutoSize
 }
 
 Create-LogSource
@@ -111,8 +105,10 @@ if ($ListInstalled) {
     if ($Interactive) { InteractiveMode $appsToRemove $false }
     else { $appsToRemove | ForEach-Object { Manage-App $_ $false } }
 } else {
+    Write-Host "Invalid mode specified." -ForegroundColor Red
     Write-EventLog -LogName Application -Source "AppManager" -EventId 21 -EntryType Error -Message "Invalid mode."
     exit 1
 }
 
+Write-Host "Operation completed." -ForegroundColor Green
 Write-EventLog -LogName Application -Source "AppManager" -EventId 22 -EntryType Information -Message "Operation completed."
