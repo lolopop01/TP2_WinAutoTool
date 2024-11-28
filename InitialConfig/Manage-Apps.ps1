@@ -38,6 +38,8 @@ function Manage-App {
         Start-Process -FilePath "choco" -ArgumentList "install $appName -y --no-progress" -NoNewWindow -Wait
         Write-Host "$appName installed successfully." -ForegroundColor Green
         Write-EventLog -LogName Application -Source "AppManager" -EventId 7 -EntryType Information -Message "$appName installed."
+        Start-Sleep -Seconds 1
+        Clear-Host
     } else {
         Write-Host "Processing uninstallation of $appName..." -ForegroundColor Yellow
         Write-EventLog -LogName Application -Source "AppManager" -EventId 10 -EntryType Information -Message "Attempting to uninstall $appName."
@@ -49,6 +51,8 @@ function Manage-App {
                     Start-Process -FilePath $uninstallString -ArgumentList "/quiet /norestart" -NoNewWindow -Wait
                     Write-Host "$appName uninstalled successfully." -ForegroundColor Green
                     Write-EventLog -LogName Application -Source "AppManager" -EventId 11 -EntryType Information -Message "$appName uninstalled."
+                    Start-Sleep -Seconds 1
+                    Clear-Host
                 } else {
                     Write-Host "No uninstall string found for $appName." -ForegroundColor Red
                     Write-EventLog -LogName Application -Source "AppManager" -EventId 12 -EntryType Warning -Message "No uninstall string found for $appName."
@@ -57,13 +61,19 @@ function Manage-App {
                 Remove-AppxPackage -Package $installedApp.PackageFullName -ErrorAction SilentlyContinue
                 Write-Host "$appName uninstalled successfully." -ForegroundColor Green
                 Write-EventLog -LogName Application -Source "AppManager" -EventId 11 -EntryType Information -Message "$appName uninstalled."
+                Start-Sleep -Seconds 1
+                Clear-Host
             }
         } else {
             Write-Host "$appName is not installed." -ForegroundColor Cyan
             Write-EventLog -LogName Application -Source "AppManager" -EventId 13 -EntryType Information -Message "$appName is not installed."
+            Start-Sleep -Seconds 1
+            Clear-Host
         }
     }
 }
+
+
 
 function InteractiveMode {
     param ([string[]]$appList, [bool]$isInstall)
