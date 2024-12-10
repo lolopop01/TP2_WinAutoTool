@@ -1,4 +1,11 @@
-﻿function Change-Background() {
+﻿# Relative path to the MonitorPerformance.ps1 script
+$scriptPath = "..\Performance\Monitor-Perf.ps1"
+
+# Open a new PowerShell window and run the script
+Start-Process -FilePath "powershell.exe" -ArgumentList "-NoExit", "-ExecutionPolicy Bypass", "-File $scriptPath"
+
+
+function Change-Background() {
     param (
         [string]$Path = ".\InitialConfig\Deep_Lilypads_Biome.jpg"
     )
