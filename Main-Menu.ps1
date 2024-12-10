@@ -1,4 +1,6 @@
-﻿function Show-Menu {
+﻿[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+function Show-Menu {
     $menuOptions = @(
         "1. Exécuter le Gestionnaire de tâches (TaskManager/Task-Manager.ps1)",
         "2. Exécuter le script de sauvegarde (Saves/scriptSauvegarde.ps1)",
